@@ -1,14 +1,18 @@
 """
 Utility functions for all Jupyter notebook plots.
 """
-from sklearn.externals import joblib
+import joblib
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize
+from matplotlib.legend_handler import HandlerLine2D
+import matplotlib.lines as mlines
+from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, HPacker, VPacker
 import glob,pdb,sys,os,pickle,copy,natsort
 from matplotlib import rcParams
 rcParams['font.family'] = 'arial'
@@ -57,7 +61,7 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
     conds2 = ['(D)','(E)','(F)']
     
     # Load variables from param file
-    file_pkl = open(root_path+dataset+'/combined_sbjs/param_file.pkl', 'rb')
+    file_pkl = open(root_path+dataset+'/combined_sbjs_power/param_file.pkl', 'rb')
     params_dict = pickle.load(file_pkl)
     file_pkl.close()
 
@@ -68,7 +72,7 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
     test_day = params_dict['test_day']
     n_test = params_dict['n_test']
     n_val = params_dict['n_val']
-    lp = [root_path+dataset+suffix_lp]
+    lp = [root_path+dataset+suffix_lp[:-1]+'_power/']
 
     if compare_models:
         models_used = params_dict['models']
@@ -127,7 +131,7 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
             for i,model_type in enumerate(models_used):
                 lp_curr = lp[i]
                 if test_type=='ecog2eeg':
-                    lp_curr = lp_curr.replace(replace_str,'')
+                    lp_curr = '/'.join(lp_curr.split('/')[:-2])+'/'
                     mod_type_curr = '' if model_type=='eegnet_hilb' else '_'+model_type
                     if not compare_models:
                         lp_spl = lp_curr.split('/')
@@ -135,12 +139,12 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
                         lp_curr = '/'.join(lp_spl[:-2]+lp_spl[-1:])
                         suff = lp_spl[-2]
                     else:
-                        suff = ''
+                        suff = '_power'
                         ##########Use relative power instead for comparison##########
                         if mod_type_curr=='':
                             suff = '_relative_power'
                         ##########Use relative power instead for comparison##########
-                    tmp_vals = np.load(lp_curr+'accs_ecogtransfer'+mod_type_curr+suff+'.npy')
+                    tmp_vals = np.load(lp_curr+'accs_ecogtransfer'+suff+mod_type_curr+'.npy')
                     for p in range(n_eeg_sbjs):
                         accs_all[p,test_ind,i] = np.mean(tmp_vals[:,p])
                 else:
@@ -155,8 +159,6 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
             accs_all[:] = np.nan
             for i,model_type in enumerate(models_used):
                 for s,pat_curr in enumerate(pats_ids_in):
-                    if len(pat_curr) > 3:
-                        pat_curr = pat_curr[:3]
                     lp_curr = lp[i]
                     lp_curr = lp_curr.replace(replace_str,test_type)
                     tmp_vals = np.load(lp_curr+'acc_'+model_type+'_'+pat_curr+'_testday_'+str(test_day)+'.npy')
@@ -232,48 +234,48 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
         ax[0,ii].tick_params(axis='x', pad=0)
         ax[0,ii].set_title(cond_lets[ii],fontsize=10,x=0,fontweight='bold',pad=title_pads[ii],color='dimgray')
         ax[0,ii].text((len(lp)/2)-.5,title_y[ii],conds[ii],fontsize=10,ha='center',fontweight='bold')
-        # Add stats (manually created)
-        star_fontsize = 18
-        if (ii==0) & compare_models:
-            y_start,h,w_x = 1.02,.04,1
-            ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
-                          [y_start, y_start+h, y_start+h, y_start, y_start, y_start],
-                          lw=1.5, c='k')
-            if use_asterisks:
-                ax[0,ii].text(1,1.04,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
-            else:
-                ax[0,ii].text(1,1.09,r'$p<0.05$',fontsize=7,fontweight='normal',ha='center')
-        elif (ii==1) & compare_models:
-            y_start,h1,h2,w_x = .95,.06,.06,1
-            ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
-                          [y_start, y_start+h1, y_start+h1, y_start-h2, y_start-h2, y_start-h2],
-                          lw=1.5, c='k')
-            if use_asterisks:
-                ax[0,ii].text(1,.99,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
-            else:
-                ax[0,ii].text(1,1.05,r'$p<0.05$',fontsize=7,fontweight='normal',ha='center')
-        elif (ii==2) & compare_models:
-            y_start,h1,h2,w_x = .8,.06,.1,1
-            ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
-                          [y_start, y_start+h1, y_start+h1, y_start-h2, y_start-h2, y_start-h2],
-                          lw=1.5, c='k')
-            if use_asterisks:
-                ax[0,ii].text(1,.85,'***',fontsize=star_fontsize,fontweight='bold',ha='center')
-            else:
-                ax[0,ii].text(1,.9,r'$p<0.001$',fontsize=7,fontweight='normal',ha='center')
-        if (ii==0) & (not compare_models):
-            ax[0,ii].text(2,.82,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
-            ax[0,ii].text(3,.97,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
-        elif (ii==1) & (not compare_models):
-            y_start,h = .92,.06
-            ax[0,ii].plot([2, 2, 4, 4],
-                          [y_start, y_start+h, y_start+h, y_start],
-                          lw=1.5, c='k')
-            ax[0,ii].text(3,.97,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
-        elif (ii==2) & (not compare_models):
-            ax[0,ii].text(1,.55,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
-            ax[0,ii].text(2,.8,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
-            ax[0,ii].text(3,.65,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#         # Add stats (manually created)
+#         star_fontsize = 18
+#         if (ii==0) & compare_models:
+#             y_start,h,w_x = 1.02,.04,1
+#             ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
+#                           [y_start, y_start+h, y_start+h, y_start, y_start, y_start],
+#                           lw=1.5, c='k')
+#             if use_asterisks:
+#                 ax[0,ii].text(1,1.04,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             else:
+#                 ax[0,ii].text(1,1.09,r'$p<0.05$',fontsize=7,fontweight='normal',ha='center')
+#         elif (ii==1) & compare_models:
+#             y_start,h1,h2,w_x = .95,.06,.06,1
+#             ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
+#                           [y_start, y_start+h1, y_start+h1, y_start-h2, y_start-h2, y_start-h2],
+#                           lw=1.5, c='k')
+#             if use_asterisks:
+#                 ax[0,ii].text(1,.99,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             else:
+#                 ax[0,ii].text(1,1.05,r'$p<0.05$',fontsize=7,fontweight='normal',ha='center')
+#         elif (ii==2) & compare_models:
+#             y_start,h1,h2,w_x = .8,.06,.1,1
+#             ax[0,ii].plot([0, 0, 2, 2, 2-w_x, 2+w_x],
+#                           [y_start, y_start+h1, y_start+h1, y_start-h2, y_start-h2, y_start-h2],
+#                           lw=1.5, c='k')
+#             if use_asterisks:
+#                 ax[0,ii].text(1,.85,'***',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             else:
+#                 ax[0,ii].text(1,.9,r'$p<0.001$',fontsize=7,fontweight='normal',ha='center')
+#         if (ii==0) & (not compare_models):
+#             ax[0,ii].text(2,.82,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             ax[0,ii].text(3,.97,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#         elif (ii==1) & (not compare_models):
+#             y_start,h = .92,.06
+#             ax[0,ii].plot([2, 2, 4, 4],
+#                           [y_start, y_start+h, y_start+h, y_start],
+#                           lw=1.5, c='k')
+#             ax[0,ii].text(3,.97,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#         elif (ii==2) & (not compare_models):
+#             ax[0,ii].text(1,.55,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             ax[0,ii].text(2,.8,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+#             ax[0,ii].text(3,.65,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
 
         ## Subject-by-subject lineplots (bottom row)
         col_labels_plt = df_sbj['Models'].unique().tolist().copy()
@@ -287,7 +289,7 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
         leg_lines = leg.get_lines()
         for i in range(len(models_used)):
             ax[1,ii].lines[i+1].set_linestyle("None") # 'None') #
-            leg_lines[i+1].set_linestyle("None") # 'None') #
+            leg_lines[i].set_linestyle("None") # 'None') #
         # plt.xticks(np.arange(1,13))
 
         ax[1,ii].set_ylim([(1/nb_classes)-.05,1])
@@ -311,7 +313,10 @@ def plot_model_accs(root_path, dataset, nb_classes=2, compare_models=True,
     plt.show()
     return fig, dfs_all
     
-def test_acc_mod_states(dfs_all):
+def test_acc_mod_stats(dfs_all):
+    """
+    Compute non-parametric stats for decoder accuracies.
+    """
     for k,df_sbj in enumerate(dfs_all):
         print('')
         print(conds[k])
@@ -421,7 +426,7 @@ def plot_weights_interp(root_path, dataset, roi_proj_lp, spec_lp, mod_type = 'ee
         if combined_sbjs:
             loadname = lp+'checkpoint_gen_'+mod_type+'_fold'+str(curr_fold)+save_suffix+'.h5'
         else:
-            loadname = lp+'checkpoint_'+mod_type+'_'+pats_ids_in[curr_fold//n_folds_sbj][:3]+'_testday_'+str(test_day)+\
+            loadname = lp+'checkpoint_'+mod_type+'_'+pats_ids_in[curr_fold//n_folds_sbj]+'_testday_'+str(test_day)+\
                        '_fold'+str(curr_fold//(len(pats_ids_in)))+save_suffix+'.h5'
 
         model_curr = tf.keras.models.load_model(loadname)
@@ -560,7 +565,7 @@ def plot_weights_interp(root_path, dataset, roi_proj_lp, spec_lp, mod_type = 'ee
                                                                    custom_roi_inds=custom_roi_inds,
                                                                    chan_cut_thres=n_chans_all,
                                                                    roi_proj_loadpath=roi_proj_lp)
-    roi_pos_df = pd.read_csv(roi_proj_lp+'none_a0f66459_ROIcentroids_Lside.csv') #file with ROI positions
+    roi_pos_df = pd.read_csv(roi_proj_lp+'none_EC01_ROIcentroids_Lside.csv') #file with ROI positions
     roi_pos_good_df = roi_pos_df.iloc[good_ROIs,:]
     print("ROIs found")
 
@@ -594,6 +599,7 @@ def plot_weights_interp(root_path, dataset, roi_proj_lp, spec_lp, mod_type = 'ee
 
         spatial_weights = copy.deepcopy(model_curr.get_layer('depthwise_conv2d').get_weights()[0])
         w_abs_accweight = np.zeros([spatial_weights.shape[0]])
+        nrows, ncols = spatial_weights.shape[-2], spatial_weights.shape[-1]
         for i in range(nrows):
             for j in range(ncols):
                 if weight_type == 'weighted':
@@ -726,7 +732,7 @@ def plot_overlap_trainnum(lp, dpi_plt = 300):
     ax[1].set_xlim([0.3,1])
     ax[1].set_ylim([.45,.9])
     ax[1].set_yticks(np.arange(.5,1,.1))
-    ax[1].set_yticklabels(['','','','','',''])
+    ax[1].set_yticklabels(['']*len(ax[1].get_yticklabels()))
     ax[1].axhline(.5,c='k',linestyle='--')
     ax[1].tick_params(axis='both', labelsize=8)
     ax[1].spines['right'].set_visible(False)
@@ -753,7 +759,7 @@ def plot_spectrogram_subplots(n_rows,n_cols,subplot_num,ax1,fig,power_ave_masked
         vscale_val_min = 0
     else:
         vscale_val_min = -vscale_val
-    power_ave_masked.plot(curr_ind, baseline=None, colorbar=False, title="", yscale='linear', tmin=epoch_times[0], tmax=epoch_times[1],vmin=vscale_val_min,vmax=vscale_val,cmap=cmap,verbose=False,axes=ax1)
+    power_ave_masked.plot(curr_ind, baseline=None, colorbar=False, title="", yscale='linear', tmin=epoch_times[0], tmax=epoch_times[1],vmin=vscale_val_min,vmax=vscale_val,cmap=cmap,verbose=False,axes=ax1,show=False)
     for vals in axvlines:
         ax1.axvline(vals, linewidth=axvline_w, color="black", linestyle="--")  # event
     ax1.spines["top"].set_visible(False)
@@ -993,3 +999,506 @@ def plot_hyptuning_results(lp):
     plt.figtext(0.415, 0.28, 'Eegnet', ha='center', va='bottom', fontsize=9)
     plt.figtext(0.81, 0.28, 'Random Forest', ha='center', va='bottom', fontsize=9)
     plt.show()
+
+    
+def plot_fine_tuning(root_path, model = 'eegnet_hilb',dpi_plt = 300):
+    """
+    Plot fine-tuning results for same and unseen modality conditions.
+    """
+    single_sbj_folder = 'tf_sep_per/' 
+#     model_used = 'eegnet_hilb'
+    tf_folders = ['tf_per_1dconv/', 'tf_depth_per/', 'tf_sep_per/', 'tf_all_per/'] # folders to view transfer learning results from
+    spec_meas = ['power', 'relative_power']
+    used_per_vals = True #if True, used percentage values (otherwise, used number of trials)
+    nb_classes = 2 # number of label types (2 for naturalistic ECoG dataset)
+    
+    data_snapshot = 17.0 # Change this if you want to look at a different percentage of training data
+    model_types = ['Tailored', 'Pretrain', 'Temp', 'Depth', 'Sep', 'All']
+    not_finetune = 2
+    n_train_default = 7
+    acc_types = ['Train','Val','Test']
+    # Use this to change the colors of plots
+    model_palette = {"Tailored": "#c17db8B3", 
+                    "Pretrain": "#2977ccB3",
+                    "Temp": "#d3f0ceB3",
+                    "Depth": "#9accb2B3",
+                    "Sep": "#57a6b8B3",
+                    "All": "#205d80B3",
+                    " ": "white"}
+    model_dict = {0: "Tailored",  
+                 1: "Pretrain", 
+                 2: "Temp", 
+                 3: "Depth",
+                 4: "Sep",
+                 5: "All"}
+    subject_marker='o'
+    
+    # Sets up the load paths and pulls in/sets the parameters from running the model
+    
+    single_sub_lp = root_path + '/' + single_sbj_folder
+
+    fig,ax = plt.subplots(2,3,dpi=dpi_plt,figsize=(7.5,4.5),
+                          gridspec_kw={'wspace':.1, 'hspace':.5})
+    
+    for ind, i in enumerate(['ecog','eeg']):
+        if i == 'eeg':
+            single_sub_lp = single_sub_lp[:-1]+'_eeg/'
+            lp = [root_path+'/'+val[:-1]+'_eeg/' for val in tf_folders]
+        else:
+            # Separate runs for same and unseen modality fine-tuning
+            lp = [root_path+'/'+val for val in tf_folders]
+
+        # Load param file from training/testing
+        file_pkl = open(root_path + '/combined_sbjs_' + spec_meas[ind] + '/param_file.pkl', 'rb')
+        params_dict = pickle.load(file_pkl)
+        file_pkl.close()
+
+        rand_seed = params_dict['rand_seed']
+        n_folds = params_dict['n_folds']
+        n_folds = 36
+        pats_ids_in = params_dict['pats_ids_in']
+        n_val = params_dict['n_val']
+        n_test = params_dict['n_test']
+        n_train = params_dict['n_train'] 
+    #     Set this to 1 so that we know default was used and np arrays will be correct dimensions
+#         n_train = 1
+        
+        if i == 'ecog':
+            n_sbjs = len(pats_ids_in)
+            sbj_total_move_events_dict = {
+                "EC01": 659,"EC02": 209,"EC03": 584,"EC04": 268,
+                "EC05": 203,"EC06": 869,"EC07": 675,"EC08": 850,
+                "EC09": 151,"EC10": 620,"EC11": 896,"EC12": 947
+            }
+            patIDs_sm = []
+            for j in range(n_sbjs):
+                patIDs_sm.append('EC' + str(j + 1).zfill(2))
+            np.random.seed(rand_seed)
+            # Uses the same random seed, so will create the same test subject list
+            sbj_inds_all_train, sbj_inds_all_val, sbj_inds_all_test = folds_choose_subjects(n_folds, pats_ids_in,
+                                                                                            n_test=n_test, n_val=n_val)
+            sbj_inds_all_test_sm = [val[0] for val in sbj_inds_all_test]
+            test_sbj_folds = np.asarray(sbj_inds_all_test_sm)
+            
+            fnames_pretrained = natsort.natsorted(glob.glob(root_path + '/'+tf_folders[0]+'/acc_gen_tf_pretrain_'+model+'*.npy'))
+            # Load in accuracy values across folds
+            
+            
+        elif i == 'eeg':
+            # No param file when running the EEG dataset
+            n_sbjs = 15
+            n_folds = 36
+            #     Set this to 1 so that we know default was used and np arrays will be correct dimensions
+#             n_train = 1
+            patIDs_sm = []
+            for j in range(n_sbjs):
+                patIDs_sm.append('EE' + str(j + 1).zfill(2))
+            sbj_total_move_events_dict = {
+                "EE01": 96,"EE02": 96,"EE03": 96,"EE04": 96,"EE05": 96,
+                "EE06": 96,"EE07": 96,"EE08": 96,"EE09": 96,"EE10": 96,
+                "EE11": 96,"EE12": 96,"EE13": 96,"EE14": 96,"EE15": 96
+            }
+            
+            fnames_pretrained = natsort.natsorted(glob.glob(root_path + '/'+tf_folders[0][:-1]+'_eeg/acc_gen_tf_pretrain_EE01_'+model+'*.npy'))
+            
+        # Determine number of train and val trials available from filenames
+        n_train_trials,n_val_trials = [],[]
+        # Load in the percentage/number of trials from name
+        for fname in fnames_pretrained:
+            if used_per_vals:
+                n_val_trials.append(int(fname.split('_')[-1][4:-4]))
+                n_train_trials.append(int(fname.split('_')[-2][4:]))
+            else:
+                n_val_trials.append(int(fname.split('_')[-2][4:]))
+                n_train_trials.append(int(fname.split('_')[-3][4:]))
+
+        # Load data
+        if i == 'ecog':
+            accs_all_pretrain = np.zeros([n_folds,len(acc_types),len(n_val_trials),len(tf_folders)])
+            accs_all_trained = accs_all_pretrain.copy()
+            for k in range(len(tf_folders)):
+                for j in range(len(n_val_trials)):
+                    cur_load = lp[k]
+                    if used_per_vals:
+                        fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_pretrain_'+model+'_'+str(n_folds)+'_ptra'+\
+                                                                 str(n_train_trials[j])+'_pval'+str(n_val_trials[j])+'*.npy'))
+                    else:
+                        fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_pretrain_'+model+'_'+str(n_folds)+'_ntra'+\
+                                                                 str(n_train_trials[j])+'_nval'+str(n_val_trials[j])+'*.npy'))
+
+                    # Transfer data from files to nparray
+                    tmp_vals = np.load(fname_curr[0])
+                    accs_all_pretrain[...,j,k] = tmp_vals
+#                     accs_all_pretrain.append(tmp_vals)
+
+
+                    # transfer learn accuracies
+                    # Load the files
+                    if used_per_vals:
+                        fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_trained_'+model+'_'+str(n_folds)+'_ptra'+\
+                                                                 str(n_train_trials[j])+'_pval'+str(n_val_trials[j])+'*.npy'))
+                    else:
+                        fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_trained_'+model+'_'+str(n_folds)+'_ntra'+\
+                                                                 str(n_train_trials[j])+'_nval'+str(n_val_trials[j])+'*.npy'))
+
+                    # Transfer data from files to nparray
+                    tmp_vals = np.load(fname_curr[0])
+                    accs_all_trained[...,j,k] = tmp_vals
+#                     accs_all_trained.append(tmp_vals)
+        elif i == 'eeg':
+            accs_all_pretrain = np.zeros([n_folds,len(patIDs_sm),len(acc_types),len(n_val_trials),len(tf_folders)])
+            accs_all_trained = accs_all_pretrain.copy()
+            for k in range(len(tf_folders)):
+                for j in range(len(n_val_trials)):
+                    cur_load = lp[k]
+                    for s,sbj in enumerate(patIDs_sm):
+                        if used_per_vals:
+                            fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_pretrain_'+sbj+'_'+model+'_'+str(n_folds)+'_ptra'+\
+                                                                     str(n_train_trials[j])+'_pval'+str(n_val_trials[j])+'*.npy'))
+                        else:
+                            fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_pretrain_'+sbj+'_'+model+'_'+str(n_folds)+'_ntra'+\
+                                                                     str(n_train_trials[j])+'_nval'+str(n_val_trials[j])+'*.npy'))
+
+                        # Transfer data from files to nparray
+                        tmp_vals = np.load(fname_curr[0])
+                        if s==0:
+                            pre_dat = np.expand_dims(tmp_vals.copy(),1)
+                        else:
+                            pre_dat = np.concatenate((pre_dat,np.expand_dims(tmp_vals.copy(),1)),axis=1)
+
+
+                        # transfer learn accuracies
+                        # Load the files
+                        if used_per_vals:
+                            fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_trained_'+sbj+'_'+model+'_'+str(n_folds)+'_ptra'+\
+                                                                     str(n_train_trials[j])+'_pval'+str(n_val_trials[j])+'*.npy'))
+                        else:
+                            fname_curr = natsort.natsorted(glob.glob(cur_load+'acc_gen_tf_trained_'+sbj+'_'+model+'_'+str(n_folds)+'_ntra'+\
+                                                                     str(n_train_trials[j])+'_nval'+str(n_val_trials[j])+'*.npy'))
+
+                        # Transfer data from files to nparray
+                        tmp_vals = np.load(fname_curr[0])
+                        if s==0:
+                            tr_dat = np.expand_dims(tmp_vals.copy(),1)
+                        else:
+                            tr_dat = np.concatenate((tr_dat,np.expand_dims(tmp_vals.copy(),1)),axis=1)
+                        
+                    accs_all_pretrain[...,j,k] = pre_dat
+                    accs_all_trained[...,j,k] = tr_dat
+        
+        # Need a separate cell for the single subject accuracies since the structure is pretty different
+        accs_all_singlesbj = []
+        if i == 'ecog':
+            for j in range(len(n_val_trials)):
+                if used_per_vals:
+                    fname_curr = (single_sub_lp+'acc_gen_tf_singlesub_'+model+'_'+\
+                                                             str(n_folds)+'_ptra'+str(n_train_trials[j])+'_pval'+\
+                                                             str(n_val_trials[j])+'.npy')
+                else:
+                    fname_curr = natsort.natsorted(glob.glob(single_sub_lp+'acc_gen_tf_singlesub_['+str(sb)+']'+model+'_'+\
+                                                             str(n_folds)+'_ntra'+str(n_train_trials[j])+'_nval'+\
+                                                             str(n_val_trials[j])+'*.npy'))
+                # Store single subject accuracies
+                tmp_vals = np.load(fname_curr)
+                accs_all_singlesbj.append(tmp_vals)    
+            accs_all_singlesbj = np.asarray(accs_all_singlesbj)
+            accs_all_singlesbj = np.moveaxis(accs_all_singlesbj,0,-1)
+        elif i == 'eeg':
+            accs_all_singlesbj = np.zeros([n_folds, len(patIDs_sm), len(acc_types), len(n_val_trials)])
+            for j in range(len(n_val_trials)):
+                for s,sbj in enumerate(patIDs_sm):
+                    if used_per_vals:
+                        fname_curr = (single_sub_lp+'acc_gen_tf_singlesub_'+sbj+'_'+model+'_'+\
+                                        str(n_folds)+'_ptra'+str(n_train_trials[j])+'_pval'+\
+                                        str(n_val_trials[j])+'.npy')
+                    else:
+                        fname_curr = natsort.natsorted(glob.glob(single_sub_lp+'acc_gen_tf_singlesub_'+sbj+'_'+model+'_'+\
+                                       str(n_folds)+'_ntra'+str(n_train_trials[j])+'_nval'+\
+                                       str(n_val_trials[j])+'*.npy'))
+                    # Store the single subject accuracies
+                    tmp_vals = np.load(fname_curr)
+                    accs_all_singlesbj[:,s,:,j] = tmp_vals
+        
+        
+        # Average test accuracy for each participant
+        ave_vals_test = np.zeros([n_sbjs,len(model_types), len(n_val_trials)])
+        test_ind = np.nonzero(np.asarray(acc_types)=='Test')[0]
+
+        for sbj in range(n_sbjs):
+        #     Get the current subjects folds (depends on dataset)
+            if i=='ecog':
+                folds_sbj = np.nonzero(test_sbj_folds==sbj)[0]
+            else:
+                folds_sbj = sbj
+            for k, model_t in enumerate(model_types):
+                for j in range(len(n_val_trials)):
+        #             Need to separate by dataset since the structure different
+                        if i=='ecog':
+                            if model_t == 'Tailored':
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_singlesbj[folds_sbj,test_ind,j]),2)
+                            elif model_t == 'Pretrain':
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_pretrain[folds_sbj,test_ind,j,0],axis=0),2)
+                            else:
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_trained[folds_sbj,test_ind,j,k - not_finetune],axis=0),2)
+                                # -2 because 2 models that are not finetuned
+
+                        elif i=='eeg':
+                            if model_t == 'Tailored':
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_singlesbj[:,folds_sbj,test_ind,j]),2)
+                            elif model_t == 'Pretrain':
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_pretrain[:,sbj,test_ind,j,0]),2)
+                            else:
+                                ave_vals_test[sbj,k,j] = round(np.median(accs_all_trained[:,sbj,test_ind,j,k - not_finetune]),2)
+                                
+        # Convert to dataframe
+        # creates a numpy array that says which model was used for which trial and subject
+        models_np = np.zeros((len(n_train_trials) * n_sbjs * len(model_dict), 1) )
+        for j in range(len(model_dict)):
+        #     indexes to the proper spot for each model
+            models_np[(j*(len(n_train_trials) * n_sbjs)):(j*(len(n_train_trials) * n_sbjs) + (len(n_train_trials) * n_sbjs))] = j
+
+        # Get the data that shows what data amt in percentages
+        data_amts = np.tile(n_train_trials, (n_sbjs, 1) )
+
+        # Then calculate the actual numbers for the datapoints (should all be different when ECoG data)
+        num_events_np = np.zeros( (n_sbjs, len(n_train_trials)) )
+        for k,s in enumerate(patIDs_sm):
+            for j,per in enumerate(n_train_trials):
+                total_move_events = sbj_total_move_events_dict[s]
+                num_events_np[k,j] = int(total_move_events * (per / 100))
+                if i=='ecog':
+        #             num_events_np just contains the move events for ECoG, so double to get total events
+                    num_events_np[k,j] = num_events_np[k,j] * 2
+        num_events_np = num_events_np.reshape(len(n_train_trials) * n_sbjs, 1)
+
+        sbjs_np = np.tile(np.array(patIDs_sm).reshape(n_sbjs, 1), (len(n_train_trials))).reshape(len(n_train_trials) * n_sbjs, 1)
+
+        # Put the pieces together in the np array for the dataframe
+        all_models_test_acc_data_amts = np.empty((0,6))
+        for j, model_t in enumerate(model_types):
+            models_np = np.full((len(n_train_trials) * n_sbjs, 1), model_t)
+            pretrain_sbjs_np = np.full((len(n_train_trials) * n_sbjs, 1), n_train_default)
+    #       average test accuracy
+            tmp = np.append(ave_vals_test[:,j,:].reshape(len(n_train_trials) * n_sbjs, 1), 
+                    data_amts.reshape(len(n_train_trials) * n_sbjs, 1), axis = 1)
+    #       number of training/finetuning events
+            tmp = np.append(tmp, num_events_np, axis = 1)
+    #       number of pretraining participants
+            tmp = np.append(tmp, pretrain_sbjs_np, axis = 1)
+    #       which subject
+            tmp = np.append(tmp, sbjs_np, axis = 1)
+    #       which model
+            tmp = np.append(tmp, models_np, axis = 1)
+            all_models_test_acc_data_amts = np.append(all_models_test_acc_data_amts, tmp, axis = 0)
+            if model_t == 'Tailored':
+                #       Use this to force a space between the fine tune and no finetune models in boxplot figure
+                zeros = np.zeros((1, 4))
+                zeros[0,1] = data_snapshot
+                zeros[0,3] = n_train_default
+                empty_model = [patIDs_sm[0] ,' ']
+                zeros = np.append(zeros, empty_model)
+                zeros = zeros.reshape((1,6))
+                all_models_test_acc_data_amts = np.append(all_models_test_acc_data_amts, zeros, axis = 0)
+#                 break
+
+        # Now finally make this a dataframe!
+        avg_test_acc_df = pd.DataFrame.from_records(all_models_test_acc_data_amts, columns=['Test Acc', 'Train Data Percent', 'Train Data Amt', 'Num Pretrain Sbjs', 'Subject', 'Model Type'])
+
+        # Sets the pretrain number of training datapoints to 0 because finetuning hasn't happened yet
+        # Will also help with future figures
+        avg_test_acc_df.loc[avg_test_acc_df['Model Type'] == 'Pretrain', 'Train Data Amt'] = 1
+
+        avg_test_acc_df[['Test Acc', 'Train Data Percent', 'Train Data Amt', 'Num Pretrain Sbjs']] = avg_test_acc_df[['Test Acc', 'Train Data Percent', 'Train Data Amt', 'Num Pretrain Sbjs']].apply(pd.to_numeric)
+        
+        #
+        tmp_list = []
+        if i=='ecog':
+            fname_curr = natsort.natsorted(glob.glob(single_sub_lp+'acc_gen_tf_singlesub0_'+model+'_'+str(n_folds)+'*.npy'))[0]
+            zero_tailored_vals = np.load(fname_curr)
+
+        for sbj in range(n_sbjs):
+        #     Get the current subjects folds (depends on dataset)
+            if i=='ecog':
+                folds_sbj = np.nonzero(test_sbj_folds==sbj)[0]
+                sbj_median_test = round(np.median(zero_tailored_vals[folds_sbj,test_ind]),2)
+                df_length = len(avg_test_acc_df)
+                avg_test_acc_df.loc[df_length] = [sbj_median_test, 0, 1, n_train_default, patIDs_sm[sbj], 'Tailored']
+            elif i=='eeg':
+                fname_curr = natsort.natsorted(glob.glob(single_sub_lp+'acc_gen_tf_singlesub0_'+patIDs_sm[sbj]+'_'+model+'_'+str(n_folds)+'*.npy'))[0]
+                zero_tailored_vals = np.load(fname_curr)
+                sbj_median_test = round(np.median(zero_tailored_vals[:,test_ind]),2)
+                df_length = len(avg_test_acc_df)
+                avg_test_acc_df.loc[df_length] = [sbj_median_test, 0, 1, n_train_default, patIDs_sm[sbj], 'Tailored']
+        
+
+        # First plot, boxplot
+        row_ind = 0 if i=='ecog' else 1
+        ax[row_ind,0].axhline(1/nb_classes,c='k',linestyle='--')
+        sns.boxplot(x = 'Model Type', y = 'Test Acc', 
+                    data=(avg_test_acc_df.loc[(avg_test_acc_df['Train Data Percent'] == data_snapshot) & (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default) ] ) , 
+                         palette = model_palette, showfliers=False,whis=0,ax=ax[row_ind,0])
+        palette = sns.color_palette("Paired")
+        # Adds the individual subjects on top
+        swarm = sns.swarmplot(x = 'Model Type', y = 'Test Acc', hue='Subject',
+                        data=(avg_test_acc_df.loc[(avg_test_acc_df['Train Data Percent'] == data_snapshot) & (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default)]), 
+                        color ='black', marker=subject_marker, s=4,ax=ax[row_ind,0])
+        swarm.legend_.remove()
+
+        ax[row_ind,0].set_xlabel(' ')
+        ax[row_ind,0].set_ylabel('Test Accuracy', fontsize='11')
+        ax[row_ind,0].set_ylim([(1/nb_classes)-.05,1.065])
+        ax[row_ind,0].set_yticks([.5,.75,1])
+        ax[row_ind,0].set_xticks([0, 2, 2, 3, 4, 5, 6])
+        ax[row_ind,0].spines['right'].set_visible(False)
+        ax[row_ind,0].spines['top'].set_visible(False)
+        ax[row_ind,0].spines['left'].set_bounds((1/nb_classes)-.05, 1)
+        ax[row_ind,0].tick_params(axis='both', labelsize=8)
+        ax[row_ind,0].set_xticklabels(ax[row_ind,0].get_xticklabels(), rotation = 40, ha="center")
+        ax[row_ind,0].tick_params(axis='x', pad=0)
+        if i=='ecog':
+            ax[row_ind,0].set_title('(A)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+        else: 
+            ax[row_ind,0].set_title('(D)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+
+#         # Draw the significance on
+#         star_fontsize = 18
+#         if i=='ecog':
+#             y_start,h,w_x,top_bar,x_start = 0.97,.04,1.9,4,2
+#             ax[row_ind,0].plot([x_start, x_start, top_bar, top_bar],
+#                       [y_start, y_start+h, y_start+h, y_start],
+#                       lw=1.5, c='k')
+#             ax[row_ind,0].text(0.75*top_bar,y_start+0.02,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
+
+#         else:
+#             y_start,h,w_x,top_bar,x_start = 1.02,.04,0.9,5.5, 0
+#             ax[row_ind,0].plot([x_start, x_start, top_bar, top_bar, top_bar-w_x, top_bar+w_x],
+#                       [y_start, y_start+h, y_start+h, y_start, y_start, y_start],
+#                       lw=1.5, c='k')
+#             ax[row_ind,0].text(0.5*top_bar,y_start+0.02,'*',fontsize=star_fontsize,fontweight='bold',ha='center')
+
+#             y_start,h,w_x,top_bar,x_start = 0.94,.04,1.9,4.5,2
+#             ax[row_ind,0].plot([x_start, x_start, top_bar, top_bar, top_bar-w_x, top_bar+w_x],
+#                       [y_start, y_start+h, y_start+h, y_start, y_start, y_start],
+#                       lw=1.5, c='k')
+#             ax[row_ind,0].text(0.7*top_bar,y_start+0.02,'**',fontsize=star_fontsize,fontweight='bold',ha='center')
+
+        # Second plot, individual subject accuracies
+        sns.lineplot(x='Subject',y='Test Acc',hue='Model Type',
+                     data=(avg_test_acc_df.loc[(avg_test_acc_df['Train Data Percent'] == data_snapshot) \
+        #                                        & (avg_test_acc_df['Model Type'].isin(models_use))
+                                               & (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default) ] ),
+                     ax=ax[row_ind,1],marker='o',markersize=5,linewidth=1,
+                     palette=model_palette, ci=None)
+        leg = ax[row_ind,1].legend()
+        leg_lines = leg.get_lines()
+        
+        for j in range(len(model_dict)+1):
+            ax[row_ind,1].lines[j].set_linestyle("None") 
+        #     leg_lines[j].set_linestyle("None") 
+        ax[row_ind,1].legend_.remove()
+
+        ax[row_ind,1].axhline(1/nb_classes,c='k',linestyle='--')
+        ax[row_ind,1].set_ylim([(1/nb_classes)-.05,1.065])
+        ax[row_ind,1].set_yticks([.5,.75,1])
+        ax[row_ind,1].set_yticklabels([])
+        ax[row_ind,1].set_ylabel('', fontsize='11')
+        ax[row_ind,1].spines['right'].set_visible(False)
+        ax[row_ind,1].spines['top'].set_visible(False)
+
+        for tick in ax[row_ind,1].get_xticklabels():
+            tick.set_rotation(60)
+            tick.set_fontsize(8)
+        ax[row_ind,1].tick_params(axis='x', pad=0)
+        ax[row_ind,1].set_xlabel(' ')
+        ax[row_ind,1].spines['left'].set_bounds((1/nb_classes)-.05, 1)
+        if i=='ecog':
+            ax[row_ind,1].set_title('(B)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+        else: 
+            ax[row_ind,1].set_title('(E)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+
+
+        # Last plot, finetuning curves
+        models_use = ["Tailored", "Temp", "Depth", "Sep", "All"]
+        # Replaces some of the pretrain models with all so we can see what happens at 0 finetuning events
+        avg_test_acc_df.loc[(avg_test_acc_df['Model Type'] == 'Pretrain') 
+                            & (avg_test_acc_df['Train Data Percent'] == 17.0), "Model Type"] = 'All'
+        avg_test_acc_df.loc[(avg_test_acc_df['Model Type'] == 'Pretrain') 
+                            & (avg_test_acc_df['Train Data Percent'] == 67.0), "Model Type"] = 'Temp'
+        avg_test_acc_df.loc[(avg_test_acc_df['Model Type'] == 'Pretrain') 
+                            & (avg_test_acc_df['Train Data Percent'] == 33.0), "Model Type"] = 'Depth'
+        avg_test_acc_df.loc[(avg_test_acc_df['Model Type'] == 'Pretrain') 
+                            & (avg_test_acc_df['Train Data Percent'] == 50.0), "Model Type"] = 'Sep'
+
+        for m, model_t in enumerate(models_use):
+            g0 = sns.regplot(x="Train Data Amt", y = "Test Acc",
+                   data = avg_test_acc_df.loc[(avg_test_acc_df['Model Type']==model_t) 
+                                              & (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default)],
+                            scatter=False, scatter_kws={"s": 12, 'alpha':0.5}, logx=True, ax=ax[row_ind,2], color = model_palette[model_t]) 
+
+
+        ax[row_ind,2].spines['left'].set_bounds((1/nb_classes)-.05, 1)
+        ax[row_ind,2].set_ylim([(1/nb_classes)-.05,1.065])
+        ax[row_ind,2].set_yticks([.5,.75,1])
+        ax[row_ind,2].set_yticklabels([])
+        ax[row_ind,2].set_ylabel(" ")
+        ax[row_ind,2].spines['right'].set_visible(False)
+        ax[row_ind,2].spines['top'].set_visible(False)
+        ax[row_ind,2].axhline(1/nb_classes,c='k',linestyle='--')
+        if i=='ecog':
+            ax[row_ind,2].set_xticks([0, 400, 800, 1200])
+            ax[row_ind,2].set_xticklabels([0, 400, 800, 1200], fontsize='8')
+            ax[row_ind,2].set_xlabel("")
+            ax[row_ind,2].set_xlim(-20, 1300)
+            ax[row_ind,2].legend(title = 'Model Type', title_fontsize = 'x-small', labels=models_use, bbox_to_anchor=(0.94, 0.6), prop={'size':6}, markerscale=1, frameon = False)
+        else:    
+            ax[row_ind,2].set_xticks([1, 21, 41, 61])
+            ax[row_ind,2].set_xticklabels([0, 20, 40, 60], fontsize='8')
+            ax[row_ind,2].set_xlim(-1, 65)
+            ax[row_ind,2].set_xlabel("Training Events", fontsize='8')
+
+        if i=='ecog':
+            ax[row_ind,2].set_title('(C)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+        else: 
+            ax[row_ind,2].set_title('(F)',fontsize=10,fontweight='bold',pad=8,color='dimgray', x=0)
+            
+    return fig, avg_test_acc_df
+
+
+def test_finetuning_stats(avg_test_acc_df, model_types = ['Tailored', 'Pretrain', 'Temp', 'Depth', 'Sep', 'All']):
+    """
+    Compute non-parametric stats for fine-tuned decoders.
+    """
+    print(pg.friedman(data=avg_test_acc_df.loc[(avg_test_acc_df['Model Type'].isin(model_types)) 
+                                          & (avg_test_acc_df['Train Data Percent'] == data_snapshot)], 
+                      dv='Test Acc', within='Model Type', subject='Subject')['p-unc'])
+    # Otherwise can just look at the whole dataset
+    print(pg.friedman(data=avg_test_acc_df.loc[(avg_test_acc_df['Model Type'].isin(model_types))], dv='Test Acc', within='Model Type', subject='Subject')['p-unc'])
+    # Looks like it gives significant results
+
+    # Wilcoxon tests (non-parametric t-tests)
+    # Computes tests at the data snapshot
+    p_vals = []
+    n_models = len(model_types)
+    for i in range(n_models):
+        for j in range(i+1,n_models):
+            val1 = avg_test_acc_df[(avg_test_acc_df['Model Type'] == model_types[i]) & 
+                                   (avg_test_acc_df['Train Data Percent'] == data_snapshot) &
+                                   (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default)].iloc[:,0].values
+            val2 = avg_test_acc_df[(avg_test_acc_df['Model Type'] == model_types[j]) & 
+                                   (avg_test_acc_df['Train Data Percent'] == data_snapshot)&
+                                   (avg_test_acc_df['Num Pretrain Sbjs'] == n_train_default)].iloc[:,0].values
+            p_vals.append(float(pg.wilcoxon(val1, val2)['p-val']))
+
+    # Correct for multiple comparisons
+    _,p_vals = pg.multicomp(np.asarray(p_vals), alpha=0.05, method='fdr_bh')
+
+    pval_df = np.zeros([n_models,n_models])
+    q = 0
+    for i in range(n_models):
+        for j in range(i+1,n_models):
+            pval_df[i,j] = p_vals[q]
+            q += 1
+
+    # Create output df with p_values
+    df_pval = pd.DataFrame(pval_df,columns=model_types,index=model_types)
+    print(df_pval)
