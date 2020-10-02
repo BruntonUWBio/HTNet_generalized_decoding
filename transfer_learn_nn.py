@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 # Custom imports
 from htnet_model import htnet
-from hilbert_DL_utils import load_data, folds_choose_subjects, subject_data_inds
+from model_utils import load_data, folds_choose_subjects, subject_data_inds
 
 def compute_accs(model_in, sbj_order_train, x_train, y_train, sbj_order_val, 
                  x_val, y_val, sbj_order_test, x_test, y_test, proj_mat_out):
@@ -126,7 +126,7 @@ def run_single_sub_percent_compare(sbj_order_train, x_train, y_train,
                      dropoutRate = dropoutRate, kernLength = kernLength, F1 = F1, D = D, F2 = F2, 
                      dropoutType = dropoutType,kernLength_sep = kernLength_sep,
                      projectROIs=False,do_log=do_log,
-                     compute_val=compute_val,ecog_srate=ecog_srate)
+                     compute_val=compute_val,data_srate=ecog_srate)
     
     ss_model.compile(loss=loss, optimizer=optimizer, metrics = ['accuracy'])
     
@@ -408,7 +408,7 @@ def transfer_learn_nn(lp, sp, model_type = 'eegnet_hilb', layers_to_finetune = N
         # Here need to run the single subject on the same amount of training and val data
         if single_sub:
             test_sbj_name = pats_ids_in[int(test_sbj)]
-            chckpt_path = sp+'checkpoint_gen_tf_single_sub_'+test_sbj_name[:3]+suffix_trials+'.h5'
+            chckpt_path = sp+'checkpoint_gen_tf_single_sub_'+test_sbj_name+suffix_trials+'.h5'
             acc_single_sub_tmp, last_epoch_single_tmp, acc_single_sub_tmp_0 = run_single_sub_percent_compare(sbj_order_train, X_train, Y_train, 
                                           sbj_order_validate, X_validate, Y_validate, sbj_order_test, 
                                           X_test, Y_test, chckpt_path, norm_rate = norm_rate,

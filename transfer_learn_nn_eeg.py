@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 # Custom imports
 from htnet_model import htnet
-from hilbert_DL_utils import load_data, folds_choose_subjects, subject_data_inds
+from model_utils import load_data, folds_choose_subjects, subject_data_inds, get_custom_motor_rois, proj_mats_good_rois
 
 def compute_accs(model_in, sbj_order_train, x_train, y_train, sbj_order_val, 
                  x_val, y_val, sbj_order_test, x_test, y_test, proj_mat_out):
@@ -130,7 +130,7 @@ def run_single_sub_percent_compare(sbj_order_train, x_train, y_train,
                      dropoutRate = dropoutRate, kernLength = kernLength, F1 = F1, D = D, F2 = F2, 
                      dropoutType = dropoutType,kernLength_sep = kernLength_sep,
                      projectROIs=False,do_log=do_log,
-                     compute_val=compute_val,ecog_srate=ecog_srate)
+                     compute_val=compute_val,data_srate=ecog_srate)
     
     ss_model.compile(loss=loss, optimizer=optimizer, metrics = ['accuracy'])
     
@@ -257,19 +257,19 @@ def transfer_learn_nn_eeg(lp, sp, eeg_data_lp,
     else:
         custom_roi_inds = None
     print("Determining ROIs")
-    proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['S01_bH'],
+    proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['EE01_bH'],
                                                                    n_chans_all = n_chans_eeg,
                                                                    rem_bad_chans=False,
                                                                    dipole_dens_thresh=None,
                                                                    custom_roi_inds=custom_roi_inds,
                                                                    chan_cut_thres=n_chans_eeg,
-                                                                   roi_proj_loadpath= data_lp+'proj_mat/')
+                                                                   roi_proj_loadpath= eeg_data_lp+'proj_mat/')
     nROIs = len(good_ROIs)
     print("ROIs found")
     n_chans_all = n_chans_eeg
 
     # Load EEG data for each subject and fit model
-    X_all,y_all,_,_,sbj_order_all,_ = load_data(pats_ids_in, data_lp, test_day=None, tlim=tlim, n_chans_all=n_chans_eeg)
+    X_all,y_all,_,_,sbj_order_all,_ = load_data(pats_ids_in, eeg_data_lp, test_day=None, tlim=tlim, n_chans_all=n_chans_eeg)
     X_all[np.isnan(X_all)] = 0 # set all NaN's to 0
     
     for pat_ind,curr_pat in enumerate(pats_ids_in):
