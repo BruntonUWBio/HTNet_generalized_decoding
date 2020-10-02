@@ -2,7 +2,7 @@
 Utility functions for running HTNet keras model and handling data.
 """
 
-import pdb, pickle, os, mne, copy
+import pdb, pickle, os, mne, copy, natsort, glob, pyriemann
 os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import pdb
@@ -11,6 +11,8 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input,Conv2D
+from tensorflow.keras import utils as np_utils
+from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 import xarray as xr
 from os import path
@@ -18,10 +20,7 @@ from mne.filter import filter_data
 from mne.time_frequency import tfr_morlet
 from mne import set_log_level
 set_log_level(verbose='ERROR')
-
-
-
-from ecog_spectrogram_utils import compute_tfr
+from functools import reduce
 
 def hilbert_tf(x):
     #, N=None, axis=-1):
@@ -229,7 +228,7 @@ def proj_to_roi(in_vals):
 
 
 def proj_mats_good_rois(patient_ids,dipole_dens_thresh = .1, n_chans_all = 150,
-                        roi_proj_loadpath = '/data1/users/stepeter/mvmt_init/ROIproj_matlab_smallROIs/',
+                        roi_proj_loadpath = '.../',
                         atlas = 'none', rem_bad_chans = True, custom_roi_inds=None, chan_cut_thres = None):
     '''
     Loads projection matrix for each subject and determines good ROIs to use
@@ -267,10 +266,11 @@ def proj_mats_good_rois(patient_ids,dipole_dens_thresh = .1, n_chans_all = 150,
         chan_ind_vals = np.nonzero(df_curr.transpose().mean().values!=0)[0][1:]
         chan_ind_vals_all.append(chan_ind_vals)
         if rem_bad_chans:
-            day = '3'
-            h5_fn='/nas/ecog_project/derived/processed_ecog/'+patient+'/full_day_ecog/'+patient+'_fullday_'+day+'.h5'
-            chan_info = pd.read_hdf(h5_fn,key='chan_info',mode='r')
-            inds2drop = np.nonzero(chan_info.loc['goodChanInds',:].values==0)[0]
+            # Load param file from pre-trained model
+            file_pkl = open(roi_proj_loadpath+'bad_ecog_electrodes.pkl', 'rb')
+            bad_elecs_ecog = pickle.load(file_pkl)
+            file_pkl.close()
+            inds2drop = bad_elecs_ecog[s]
             if chan_cut_thres is not None:
                 all_inds = np.arange(df_curr.shape[0])
                 inds2drop = np.union1d(inds2drop,all_inds[all_inds>chan_cut_thres])
@@ -301,7 +301,7 @@ def load_data(pats_ids_in, lp, n_chans_all=64, test_day=None, tlim=[-1,1], event
     #Gather each subjects data, and concatenate all days
     for j in tqdm(range(len(pats_ids_in))):
         pat_curr = pats_ids_in[j]
-        ep_data_in = xr.open_dataset(lp+pat_curr[:3]+'_ecog_data.nc')
+        ep_data_in = xr.open_dataset(lp+pat_curr+'_ecog_data.nc')
         ep_times = np.asarray(ep_data_in.time)
         time_inds = np.nonzero(np.logical_and(ep_times>=tlim[0],ep_times<=tlim[1]))[0]
         n_ecog_chans = (len(ep_data_in.channels)-1)
@@ -531,7 +531,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-def unseen_modality_test(eeg_lp, roi_proj_loadpath, ecog_root, model_lp, pow_type='relative_power',
+def unseen_modality_test(eeg_lp, roi_proj_loadpath, ecog_root, pow_type='relative_power',
                          model_type = 'eegnet_hilb'):
     """
     Test trained same modality decoders on unseen EEG data.
@@ -577,7 +577,7 @@ def unseen_modality_test(eeg_lp, roi_proj_loadpath, ecog_root, model_lp, pow_typ
     else:
         custom_roi_inds = None
     print("Determining ROIs")
-    proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['S01_bH'],
+    proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['EE01_bH'],
                                                                    n_chans_all = n_chans_eeg,
                                                                    rem_bad_chans=False,
                                                                    dipole_dens_thresh=None,
@@ -734,7 +734,7 @@ def diff_specs(lp, data_lp, ecog = True, roi_of_interest = 47, pad_val = 0.5,
         else:
             custom_roi_inds = None
         print("Determining ROIs")
-        proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['S01_bH'],
+        proj_mat_out,good_ROIs,chan_ind_vals_all = proj_mats_good_rois(['EE01_bH'],
                                                                        n_chans_all = n_chans_eeg,
                                                                        rem_bad_chans=False,
                                                                        dipole_dens_thresh=None,
@@ -850,3 +850,208 @@ def diff_specs(lp, data_lp, ecog = True, roi_of_interest = 47, pad_val = 0.5,
 
     # Save final spectrogram and time/frequencies
     power.save(lp+savename,overwrite=True)
+    
+def ntrain_combine_df(root_path, ntra = [1,10],
+                      suffix_lp = '/combined_sbjs_ntra', acc_type = 'Test'):
+    """
+    Combines accuracies from training multiple participants into 1 dataframe
+    Inputs:
+            root_path : top-level directory of saved files
+            ntra : min, max number of training subjects used
+    """
+
+    ntra_lst = np.arange(ntra[0],ntra[1]+1).tolist()
+    lp = [root_path+suffix_lp+str(val)+'/' for val in ntra_lst]
+    
+    # Load parameters from param file
+    file_pkl = open(lp[0]+'param_file.pkl', 'rb')
+    params_dict = pickle.load(file_pkl)
+    file_pkl.close()
+
+    rand_seed = params_dict['rand_seed']
+    n_folds = params_dict['n_folds']
+    pats_ids_in = params_dict['pats_ids_in']
+    combined_sbjs = params_dict['combined_sbjs']
+    test_day = params_dict['test_day']
+    models_used = params_dict['models']
+    n_test = params_dict['n_test']
+    n_val = params_dict['n_val']
+
+    model_dict = {'eegnet_hilb':'HTNet','eegnet':'EEGNet','rf':'Random Forest',
+                  'riemann':'Minimum Distance'} # Dictionary for plot legend
+    
+    # Determine train/val/test splits
+    np.random.seed(rand_seed)
+    sbj_inds_all_train, sbj_inds_all_val, sbj_inds_all_test = folds_choose_subjects(n_folds, pats_ids_in,
+                                                                                    n_test=n_test, n_val=n_val)
+    sbj_inds_all_test_sm = [val[0] for val in sbj_inds_all_test]
+    test_sbj_folds = np.asarray(sbj_inds_all_test_sm)
+    
+    # Load in accuracy values across folds
+    acc_types = ['Train','Val','Test']
+    acc_ind = np.nonzero(np.asarray(acc_types)==acc_type)[0]
+    n_sbj_amts = len(lp)
+    n_models = len(models_used)
+    n_subjs = len(pats_ids_in)
+    accs_all = np.zeros([n_folds,n_sbj_amts,n_models]) #middle value is train,val,test accuracies
+    accs_all[:] = np.nan
+    for i,model_type in enumerate(models_used):
+        for j in range(n_sbj_amts):
+            tmp_vals = np.load(lp[j]+'acc_gen_'+model_type+'_'+str(n_folds)+'.npy')
+            for p in range(n_folds):
+                accs_all[p,j,i] = tmp_vals[p,acc_ind]
+                
+    # Average results for each participant
+    ave_vals_test_sbj = np.zeros([n_subjs,n_sbj_amts,n_models])
+    for sbj in range(n_subjs):
+        folds_sbj = np.nonzero(test_sbj_folds==sbj)[0]
+        for j,modtype in enumerate(models_used): 
+            ave_vals_test_sbj[sbj,:,j] = np.mean(accs_all[folds_sbj,:,j],axis=0)
+
+    # Reshape to 2D array for pandas dataframe
+    dat_sh = ave_vals_test_sbj.shape
+    ave_vals_2d = np.zeros([dat_sh[0],dat_sh[1]*dat_sh[2]])
+    for i in range(dat_sh[2]):
+        ave_vals_2d[:,(dat_sh[1]*i):(dat_sh[1]*(i+1))] = ave_vals_test_sbj[:,:,i]
+
+    patIDs_sm = [val[:3] for val in pats_ids_in]
+    patIDs_sm_cons = []
+    for val in patIDs_sm:
+        patIDs_sm_cons.extend([val]*n_sbj_amts*n_models)
+
+    mod_ids = []
+    for i in range(n_subjs):
+        for mod_curr in models_used:
+            mod_ids.extend([mod_curr]*n_sbj_amts)
+    mod_ids = [model_dict[val] for val in mod_ids]
+
+    n_tra_lst = [str(val) for val in ntra_lst]*n_models*n_subjs
+
+
+    vals_np = np.asarray([ave_vals_2d.flatten().tolist()]+[patIDs_sm_cons]+\
+                         [mod_ids]+[n_tra_lst]).T
+    df_sbj = pd.DataFrame(vals_np, columns=['Accuracy','sbj','Models','n_tra'])
+    df_sbj['Accuracy'] = pd.to_numeric(df_sbj['Accuracy'])
+    df_sbj['n_tra'] = pd.to_numeric(df_sbj['n_tra'])
+
+    df_sbj.to_csv(root_path+'/ntra_df.csv')
+
+def proj_compute_dipdens(patient_ids, roi_proj_loadpath,
+                         atlas = 'none'):
+    """
+    Loads projection matrix for each subject and extracts dipole densities (top row)
+    
+    Inputs:
+            patient_ids : which participants to get projection matrix from
+            roi_proj_loadpath : where to load projection matrix CSV files
+            atlas : ROI projection atlas to use (aal, loni, brodmann, or none)
+    """
+    #Find good ROIs first
+    dipole_densities = []
+    for s,patient in enumerate(patient_ids):
+        df = pd.read_csv(roi_proj_loadpath+atlas+'_'+patient+'_elecs2ROI.csv')
+        dip_dens = df.iloc[0]
+        dipole_densities.append(dip_dens)
+
+    return np.asarray(dipole_densities)
+    
+def frac_combine_df(root_path, roi_proj_loadpath, dipole_dens_thresh = .07, accuracy_to_plot = 'Test',
+                    custom_rois = True, compare_frac = 'train_test',
+                    custom_rois_compare = ['precentral','postcentral','parietal_inf'], meas = 'power'):
+    """
+    Combines accuracies and fraction overlap into 1 dataframe
+    Inputs:
+            dipole_dens_thresh : value to threshold dipole density values (higher means fewer ROI's get through)
+            accuracy_to_plot : which accuracy values to plot on y axis ('Train','Val',or 'Test')
+            custom_rois : if used custom ROI's during classification, limit the ROI's here to just those custom ones
+            compare_frac : which participants to compare for fraction overlap
+    """
+    lp = root_path+'/combined_sbjs_'+meas
+    # Load parameters from param file
+    file_pkl = open(lp+'/param_file.pkl', 'rb')
+    params_dict = pickle.load(file_pkl)
+    file_pkl.close()
+    rand_seed = params_dict['rand_seed']
+    n_folds = params_dict['n_folds']
+    pats_ids_in = params_dict['pats_ids_in']
+    models_used = params_dict['models']
+    n_test = params_dict['n_test']
+    n_val = params_dict['n_val']
+    
+    # Load model accuracies
+    acc_types = ['Train','Val','Test']
+    n_accs = len(acc_types)
+    n_models = len(models_used)
+    accs_all = np.zeros([n_folds,n_accs,n_models]) #middle value is train,val,test accuracies
+    accs_all[:] = np.nan
+    for i,model_type in enumerate(models_used):
+        tmp_vals = np.load(lp+'/acc_gen_'+model_type+'_'+str(n_folds)+'.npy')
+        for j in range(n_accs):
+            for p in range(n_folds):
+                accs_all[p,j,i] = tmp_vals[p,j]
+    
+    if custom_rois:
+        custom_roi_inds = get_custom_motor_rois()
+            
+    for mod_ind in range(len(models_used)):
+        #Load dipole densities for all subjects
+        dipole_dens = proj_compute_dipdens(pats_ids_in, roi_proj_loadpath)
+        
+        # Determine train/val/test splits
+        np.random.seed(rand_seed)
+        sbj_inds_all_train, sbj_inds_all_val, sbj_inds_all_test = folds_choose_subjects(n_folds, pats_ids_in,
+                                                                                        n_test=n_test, n_val=n_val)
+        sbj_inds_all_train_np = np.asarray(sbj_inds_all_train)
+        sbj_inds_all_val_np = np.asarray(sbj_inds_all_val)
+        sbj_inds_all_test_np = np.asarray(sbj_inds_all_test)
+
+        #Determine which subjects to compare for every fold, based on compare_frac specification
+        sbjs_numerator = sbj_inds_all_test_np
+        if compare_frac == 'train_test':
+            sbjs_denominator = sbj_inds_all_train_np
+        elif compare_frac == 'trainval_test':
+            sbjs_denominator = np.concatenate((sbj_inds_all_train_np,sbj_inds_all_val_np),axis=1)
+        elif compare_frac == 'motor_area':
+            sbjs_denominator = sbj_inds_all_train_np
+
+        frac_overlap = []
+        for i in range(n_folds):        
+            mean_dips1 = dipole_dens[sbjs_numerator[i,:],:].mean(axis=0)
+            inds_thresh1 = np.nonzero(mean_dips1 >= dipole_dens_thresh)[0]
+            if compare_frac == 'motor_area':
+                custom_roi_inds_compare = get_custom_motor_rois(custom_rois_compare)
+                inds_thresh2 = custom_roi_inds_compare.copy()
+            else:
+                mean_dips2 = dipole_dens[sbjs_denominator[i,:],:].mean(axis=0)
+                inds_thresh2 = np.nonzero(mean_dips2 >= dipole_dens_thresh)[0]
+
+            if custom_rois:
+                frac_num = len(reduce(np.intersect1d, (inds_thresh1,inds_thresh2,custom_roi_inds)))
+                frac_denom = len(reduce(np.intersect1d, (inds_thresh2,custom_roi_inds)))
+            else:
+                frac_num = len(reduce(np.intersect1d, (inds_thresh1,inds_thresh2)))
+                frac_denom = len(inds_thresh2)
+            
+            frac_overlap.append(frac_num/frac_denom)
+
+        # Add results to dataframe
+        frac_overlap_np = np.asarray(frac_overlap)
+        acc_plt_dict = {'Train':0,'Val':1,'Test':2}
+        acc_plt = accs_all[:,acc_plt_dict[accuracy_to_plot],mod_ind]
+        
+        model_dict = {'eegnet_hilb':'HTNet','eegnet':'EEGNet','rf':'Random Forest',
+                      'riemann':'Minimum Distance'}
+        col_labels = [model_dict[val] for val in models_used]
+        mod_df_lst = [[col_labels[mod_ind]]*len(acc_plt)]
+        if mod_ind==0:
+            df_plt = pd.DataFrame([frac_overlap_np,acc_plt]+mod_df_lst).T
+            df_plt.columns=['Frac','Acc','Model']
+        else:
+            df_tmp = pd.DataFrame([frac_overlap_np,acc_plt]+mod_df_lst).T
+            df_tmp.columns=['Frac','Acc','Model']
+            df_plt = pd.concat([df_plt,df_tmp],ignore_index=True)
+            
+    df_plt['Acc'] = pd.to_numeric(df_plt['Acc'])
+    df_plt['Frac'] = pd.to_numeric(df_plt['Frac'])
+    
+    df_plt.to_csv(root_path+'/frac_overlap_df.csv')
