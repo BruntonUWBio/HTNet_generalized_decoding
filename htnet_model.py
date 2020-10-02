@@ -13,6 +13,7 @@ from tensorflow.keras.regularizers import l1_l2
 from tensorflow.keras.layers import Input, Flatten, Concatenate
 from tensorflow.keras.constraints import max_norm
 from tensorflow.keras import backend as K
+import tensorflow as tf
 
 # Load utility functions for custom HTNet layers
 from model_utils import apply_hilbert_tf, proj_to_roi
