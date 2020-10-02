@@ -25,7 +25,7 @@ import pyriemann
 
 # Custom imports
 from htnet_model import htnet
-from model_utils import load_data, folds_choose_subjects, subject_data_inds, roi_proj_rf, str2bool
+from model_utils import load_data, folds_choose_subjects, subject_data_inds, roi_proj_rf, str2bool, get_custom_motor_rois, proj_mats_good_rois
 
 def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,modeltype,
               proj_mat_out=None,sbj_order_train=None,sbj_order_validate=None,
@@ -46,7 +46,7 @@ def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,
                   dropoutRate = dropoutRate, kernLength = kernLength, F1 = F1, D = D, F2 = F2, 
                   dropoutType = dropoutType,kernLength_sep = kernLength_sep,
                   ROIs = nROIs,useHilbert=useHilbert,projectROIs=projectROIs,do_log=do_log,
-                  compute_val=compute_val,ecog_srate=ecog_srate)
+                  compute_val=compute_val,data_srate=ecog_srate)
     
     # Set up comiler, checkpointer, and early stopping during model fitting
     model.compile(loss=loss, optimizer=optimizer, metrics = ['accuracy'])
@@ -94,7 +94,7 @@ def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,
     tf.keras.backend.clear_session() # avoids slowdowns when running fits for many folds
     return accs_lst, np.array([last_epoch,t_fit_total])
 
-def run_nn_models(sp,n_folds,combined_sbjs,lp,
+def run_nn_models(sp,n_folds,combined_sbjs,lp, roi_proj_loadpath,
                   pats_ids_in=['EC01','EC02','EC03','EC04','EC05','EC06',
                                'EC07','EC08','EC09','EC10','EC11','EC12'],
                   n_evs_per_sbj=500,test_day=None,tlim=[-1,1],
@@ -104,7 +104,6 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp,
                   F1=8, D=2, F2=16, dropoutType='Dropout', kernLength_sep=16,rand_seed=1337,
                   loss='categorical_crossentropy',optimizer='adam',
                   patience = 5, early_stop_monitor = 'val_loss', do_log = False, n_test=1, n_val=4,
-                  roi_proj_loadpath = '/data1/users/stepeter/mvmt_init/ROIproj_matlab_smallROIs/',
                   custom_rois = True, n_train = 7, epochs=20, compute_val='power',ecog_srate=500,
                   half_n_evs_test = 'nopad',trim_n_chans=True):
     '''
@@ -410,7 +409,7 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp,
                         accs[frodo,2] = accuracy_score(y_test2.ravel(), clf.predict(X_test2_rf))
                         
                         # Save model
-                        chckpt_path = sp+modeltype+'_'+pat_id_curr[:3]+'_testday_'+\
+                        chckpt_path = sp+modeltype+'_'+pat_id_curr+'_testday_'+\
                                       str(test_day)+'_fold'+str(frodo)+save_suffix+'.sav'
                         pickle.dump(clf, open(chckpt_path, 'wb'))
                     elif modeltype == 'riemann':
@@ -446,12 +445,12 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp,
                         accs[frodo,2] = accuracy_score(y_test2.ravel(), clf.predict(cov_data_test))
                         
                         # Save model
-                        chckpt_path = sp+modeltype+'_'+pat_id_curr[:3]+'_testday_'+\
+                        chckpt_path = sp+modeltype+'_'+pat_id_curr+'_testday_'+\
                                       str(test_day)+'_fold'+str(frodo)+save_suffix+'.sav'
                         pickle.dump(clf, open(chckpt_path, 'wb'))
                     else:
                         # Fit NN model and store accuracies
-                        chckpt_path = sp+'checkpoint_'+modeltype+'_'+pat_id_curr[:3]+'_testday_'+\
+                        chckpt_path = sp+'checkpoint_'+modeltype+'_'+pat_id_curr+'_testday_'+\
                                       str(test_day)+'_fold'+str(frodo)+save_suffix+'.h5'
                         accs_lst, last_epoch_tmp = cnn_model(X_train, Y_train,X_validate,
                                                              Y_validate,X_test2,y_test2,chckpt_path,modeltype,
@@ -468,8 +467,8 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp,
                         last_epochs[frodo,:] = last_epoch_tmp
                 
                 # Save accuracies (train/val/test)
-                np.save(sp+'acc_'+modeltype+'_'+pat_id_curr[:3]+'_testday_'+str(test_day)+save_suffix+'.npy',accs)
-                np.save(sp+'last_training_epoch_gen_tf'+modeltype+'_'+pat_id_curr[:3]+'_testday_'
+                np.save(sp+'acc_'+modeltype+'_'+pat_id_curr+'_testday_'+str(test_day)+save_suffix+'.npy',accs)
+                np.save(sp+'last_training_epoch_gen_tf'+modeltype+'_'+pat_id_curr+'_testday_'
                         +str(test_day)+save_suffix+'.npy', last_epochs)
         
         # Return validation accuracy for hyperparameter tuning (assumes only 1 model and 1 subject)
