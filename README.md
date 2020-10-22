@@ -2,7 +2,7 @@
 
 Code for HTNet as shown in [PAPER LINK]. The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow. It is heavily based on the EEGNet model developed by Lawhern et al: https://github.com/vlawhern/arl-eegmodels.
 
-To replicate the findings from our paper, create a new conda environment using the environment.yml file. Be sure to download the data from figshare [DATA LINK].
+To replicate the findings from our paper, create a new conda environment using the environment.yml file. ECoG data can be downloaded from figshare [DATA LINK] and EEG data can be downloaded at http://bnci-horizon-2020.eu/database/data-sets (#25).
 
 
 
