@@ -1,6 +1,6 @@
 # HTNet_generalized_decoding
 
-Code for HTNet as shown in https://www.biorxiv.org/content/10.1101/2020.10.30.362558v1?rss=1. If you use this code, please cite our paper.
+Code for HTNet as shown in https://doi.org/10.1088/1741-2552/abda0b. If you use this code, please cite our paper.
 
 
 The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow. It is heavily based on the EEGNet model developed by Lawhern et al: https://github.com/vlawhern/arl-eegmodels.
