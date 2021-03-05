@@ -1,4 +1,4 @@
-# HTNet - generalized decoding for ECoG and cross-modal datasets
+# HTNet: generalized decoding for ECoG and cross-modal neural datasets
 
 
 
