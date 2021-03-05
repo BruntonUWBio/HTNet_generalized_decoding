@@ -18,7 +18,7 @@ To replicate the findings from our paper, create a new conda environment using t
 
 **1) Run all decoder training and testing analyses**
 
-Open *train_decoders.py* and set rootpath to be the directory above your ecog_dataset and eeg_dataset directories and then run it. Note that this script will run every analysis from our paper at once, which takes several days to run. The different analyses are separated out in the script in case you want to comment out certain ones. This script also requires a GPU (change integer for os.environ["CUDA_VISIBLE_DEVICES"] if you need to switch to a different GPU).
+Open *train_decoders.py* and set rootpath to be the directory above your ecog_dataset and eeg_dataset directories and then run it. Note that this script will run every analysis from our paper at once, which takes several days to run. The different analyses are separated out in the script in case you want to comment out certain ones. This script also requires a GPU (change the value for os.environ["CUDA_VISIBLE_DEVICES"] if you need to switch to a different GPU).
 
 
 
