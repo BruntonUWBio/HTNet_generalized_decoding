@@ -9,6 +9,8 @@ HTNet is a convolutional neural network decoder, heavily based on the [EEGNet mo
 The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow.
 
 
+![HTNet architecture](htnet_arch.png)
+
 
 ## Citing our paper
 
