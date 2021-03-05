@@ -47,3 +47,10 @@ Note that the default images were generated using models trained for only 2 epoc
 **3) Hyperparameter tuning [optional]**
 
 Additionally, we have included our hyperparameter tuning code (*hyptuning_optuna.py*), which uses Optuna to tune hyperparameters.
+
+
+
+
+## Funding
+
+This work was supported by funding from the Defense Advanced Research Projects Agency (FA8750-18-2-0259), the National Science Foundation (1630178 and EEC-1028725), the Washington Research Foundation, and the Weill Neurohub.
