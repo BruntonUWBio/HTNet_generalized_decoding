@@ -16,7 +16,8 @@ If you use our code, please cite our published *Journal of Neural Engineering* [
 
 ```
 Peterson, S. M., Steine-Hanson, Z., Davis, N., Rao, R. P. N., & Brunton, B. W. (2021).
-Generalized neural decoders for transfer learning across participants and recording modalities. Journal of Neural Engineering. https://doi.org/10.1088/1741-2552/abda0b
+Generalized neural decoders for transfer learning across participants and recording modalities.
+Journal of Neural Engineering. https://doi.org/10.1088/1741-2552/abda0b
 ```
 
 
