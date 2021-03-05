@@ -6,7 +6,7 @@
 
 HTNet is a convolutional neural network decoder, heavily based on the [EEGNet model](https://github.com/vlawhern/arl-eegmodels) developed by Lawhern et al. The key modifications are that HTNet converts data to the frequency domain (via the filer-Hilbert method) and then projects data onto common brain regions (using [measure projection](https://github.com/bigdelys/measure_projection)). This projection step aligns data from participants with heterogeneous electrode locations, a common issue for multi-participant ECoG analyses. 
 
-The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow.
+The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow (our modifications to the EEGNet model are highlighted in yellow below).
 
 
 ![HTNet architecture](htnet_arch.png)
