@@ -1,12 +1,18 @@
-# HTNet_generalized_decoding
+# HTNet - generalized neural decoding for ECoG and cross-modality datasets
 
-Code for HTNet as shown in https://doi.org/10.1088/1741-2552/abda0b. If you use this code, please cite our paper.
+## Overview
 
+HTNet is a convolutional neural network decoder, heavily based on the [EEGNet model](https://github.com/vlawhern/arl-eegmodels) developed by Lawhern et al. The key modifications are that HTNet converts data to the frequency domain (via the filer-Hilbert method) and then projects data onto common brain regions (based on [this method](https://github.com/bigdelys/measure_projection)). This projection step aligns data from participants with heterogeneous electrode locations, a common issue for multi-participant ECoG analyses.
 
-The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow. It is heavily based on the EEGNet model developed by Lawhern et al: https://github.com/vlawhern/arl-eegmodels.
+The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow.
 
+## Citing our paper
 
-To replicate the findings from our paper, create a new conda environment using the environment.yml file. ECoG data can be downloaded from figshare (https://figshare.com/projects/Generalized_neural_decoders_for_transfer_learning_across_participants_and_recording_modalities/90287) and EEG data can be downloaded at http://bnci-horizon-2020.eu/database/data-sets (#25). The EEG data should be preprocessed using *Load EEG dataset.ipynb*.
+If you use our code, please cite our published *Journal of Neural Engineering* [paper](https://doi.org/10.1088/1741-2552/abda0b).
+
+## Replicating our published findings
+
+To replicate the findings from our paper, create a new conda environment using the environment.yml file. Next, download the [ECoG](https://figshare.com/projects/Generalized_neural_decoders_for_transfer_learning_across_participants_and_recording_modalities/90287) and [EEG](http://bnci-horizon-2020.eu/database/data-sets) datasets (use dataset #25 for EEG). The EEG data can be preprocessed using *Load EEG dataset.ipynb*.
 
 
 
@@ -20,7 +26,7 @@ Open *train_decoders.py* and set rootpath to be the directory above your ecog_da
 
 Once *train_decoders.py* has finished runnning, open *Plot_figures.ipynb* and add the rootpath directory you used previously. Each cell will produce a plot similar to the figures in the paper. Note that the HTNet interpretability cell requires a GPU to compute the frequency response of the temporal convolution.
 
-As a side note, the default images were generated using models trained for only 2 epochs as a test, which is why they do not match our manuscript figures.
+Note that the default images were generated using models trained for only 2 epochs as a test, so they do not match our manuscript figures.
 
 
 
