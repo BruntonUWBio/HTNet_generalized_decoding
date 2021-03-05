@@ -1,14 +1,24 @@
-# HTNet - generalized neural decoding for ECoG and cross-modality datasets
+# HTNet - generalized decoding for ECoG and cross-modal datasets
+
+
 
 ## Overview
 
-HTNet is a convolutional neural network decoder, heavily based on the [EEGNet model](https://github.com/vlawhern/arl-eegmodels) developed by Lawhern et al. The key modifications are that HTNet converts data to the frequency domain (via the filer-Hilbert method) and then projects data onto common brain regions (based on [this method](https://github.com/bigdelys/measure_projection)). This projection step aligns data from participants with heterogeneous electrode locations, a common issue for multi-participant ECoG analyses.
+HTNet is a convolutional neural network decoder, heavily based on the [EEGNet model](https://github.com/vlawhern/arl-eegmodels) developed by Lawhern et al. The key modifications are that HTNet converts data to the frequency domain (via the filer-Hilbert method) and then projects data onto common brain regions (using [measure projection](https://github.com/bigdelys/measure_projection)). This projection step aligns data from participants with heterogeneous electrode locations, a common issue for multi-participant ECoG analyses.
 
 The HTNet model code is available in *htnet_model.py*. This model is written in Python and relies on Keras and Tensorflow.
+
+
 
 ## Citing our paper
 
 If you use our code, please cite our published *Journal of Neural Engineering* [paper](https://doi.org/10.1088/1741-2552/abda0b).
+
+```
+Peterson, S. M., Steine-Hanson, Z., Davis, N., Rao, R. P. N., & Brunton, B. W. (2021). Generalized neural decoders for transfer learning across participants and recording modalities. Journal of Neural Engineering. https://doi.org/10.1088/1741-2552/abda0b
+```
+
+
 
 ## Replicating our published findings
 
