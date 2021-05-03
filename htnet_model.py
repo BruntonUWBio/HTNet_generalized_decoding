@@ -18,11 +18,12 @@ import tensorflow as tf
 # Load utility functions for custom HTNet layers
 from model_utils import apply_hilbert_tf, proj_to_roi
 
-def htnet(nb_classes, Chans = 64, Samples = 128, 
-          dropoutRate = 0.5, kernLength = 64, F1 = 8, 
-          D = 2, F2 = 16, norm_rate = 0.25, dropoutType = 'Dropout',
-          ROIs = 100,useHilbert=False,projectROIs=False,kernLength_sep = 16,
-          do_log=False,compute_val='power',data_srate = 500,base_split = 4):
+
+def htnet(nb_classes, Chans=64, Samples=128,
+          dropoutRate=0.5, kernLength=64, F1=8,
+          D=2, F2=16, norm_rate=0.25, dropoutType='Dropout',
+          ROIs=100, useHilbert=False, projectROIs=False, kernLength_sep=16,
+          do_log=False, compute_val='power', data_srate=500, base_split=4):
     """
     Keras model for HTNet, which implements EEGNet with custom layers that implement
     the hilbert transform to compute spectral power/phase/frequency and project
@@ -56,7 +57,7 @@ def htnet(nb_classes, Chans = 64, Samples = 128,
       base_split      : Determines baseline to use for relative power; averages time dimension based on base split
                         and takes first segment as baseline
     """
-    
+
     if dropoutType == 'SpatialDropout2D':
         dropoutType = SpatialDropout2D
     elif dropoutType == 'Dropout':
@@ -64,64 +65,64 @@ def htnet(nb_classes, Chans = 64, Samples = 128,
     else:
         raise ValueError('dropoutType must be one of SpatialDropout2D '
                          'or Dropout, passed as a string.')
-    
-    input1   = Input(shape = (1, Chans, Samples))
+
+    input1 = Input(shape=(Chans, Samples, 1))
     if projectROIs:
-        input2   = Input(shape = (1, ROIs, Chans))
+        input2 = Input(shape=(ROIs, Chans, 1))
 
     ##################################################################
-    block1       = Conv2D(F1, (1, kernLength), padding = 'same',
-                                   input_shape = (1, Chans, Samples),
-                                   use_bias = False)(input1)
-    
+    block1 = Conv2D(F1, (1, kernLength), padding='same',
+                    input_shape=(Chans, Samples, 1),
+                    use_bias=False)(input1)
+
     if useHilbert:
         # Hilbert transform
         if compute_val == 'relative_power':
             # Compute power for filtered input and divide by power for raw input
-            X1 = Lambda(apply_hilbert_tf, arguments={'do_log':True,'compute_val':'power'})(block1) 
-            
+            X1 = Lambda(apply_hilbert_tf, arguments={'do_log': True, 'compute_val': 'power'})(block1)
+
             # Subtract off baseline (at beginning of input data trials)
-            X2 = AveragePooling2D((1, X1.shape[-1]//base_split))(X1) # average across all time points
-            X2 = Lambda(lambda x: tf.tile(x[...,:1],tf.constant([1,1,1,Samples], dtype=tf.int32)))(X2)
-            block1 = Lambda(lambda inputs: inputs[0]-inputs[1])([X1, X2])
+            X2 = AveragePooling2D((1, X1.shape[-1] // base_split))(X1)  # average across all time points
+            X2 = Lambda(lambda x: tf.tile(x[..., :1], tf.constant([1, 1, 1, Samples], dtype=tf.int32)))(X2)
+            block1 = Lambda(lambda inputs: inputs[0] - inputs[1])([X1, X2])
         else:
-            block1       = Lambda(apply_hilbert_tf, arguments={'do_log':do_log,'compute_val':compute_val,\
-                                                               'data_srate':data_srate})(block1)
+            block1 = Lambda(apply_hilbert_tf, arguments={'do_log': do_log, 'compute_val': compute_val, \
+                                                         'data_srate': data_srate})(block1)
     if projectROIs:
         # Project to common brain regions
         # block1       = AveragePooling2D((1, 2))(block1) # can downsample spectral measure before projection step to limit memory usage
-        block1       = Lambda(proj_to_roi)([block1,input2]) #project to ROIs
-    block1       = BatchNormalization(axis = 1)(block1)
-    
+        block1 = Lambda(proj_to_roi)([block1, input2])  # project to ROIs
+    block1 = BatchNormalization()(block1)
+
     # Depthwise kernel acts over all electrodes or brain regions
     if projectROIs:
-        block1       = DepthwiseConv2D((ROIs, 1), use_bias = False, 
-                                   depth_multiplier = D,
-                                   depthwise_constraint = max_norm(1.))(block1)
+        block1 = DepthwiseConv2D((ROIs, 1), use_bias=False,
+                                 depth_multiplier=D,
+                                 depthwise_constraint=max_norm(1.))(block1)
     else:
-        block1       = DepthwiseConv2D((Chans, 1), use_bias = False, 
-                                   depth_multiplier = D,
-                                   depthwise_constraint = max_norm(1.))(block1)
-    block1       = BatchNormalization(axis = 1)(block1)
-    block1       = Activation('elu')(block1)
-    block1       = AveragePooling2D((1, 4))(block1)
-    block1       = dropoutType(dropoutRate)(block1)
-    
-    block2       = SeparableConv2D(F2, (1, kernLength_sep),
-                                   use_bias = False, padding = 'same')(block1)
-    block2       = BatchNormalization(axis = 1)(block2)
-    block2       = Activation('elu')(block2)
-    block2       = AveragePooling2D((1, 8))(block2)
-    block2       = dropoutType(dropoutRate)(block2)
-        
-    flatten      = Flatten(name = 'flatten')(block2)
-    
-    dense        = Dense(nb_classes, name = 'dense', 
-                         kernel_constraint = max_norm(norm_rate))(flatten)
-    softmax      = Activation('softmax', name = 'softmax')(dense)
-    
+        block1 = DepthwiseConv2D((Chans, 1), use_bias=False,
+                                 depth_multiplier=D,
+                                 depthwise_constraint=max_norm(1.))(block1)
+    block1 = BatchNormalization()(block1)
+    block1 = Activation('elu')(block1)
+    block1 = AveragePooling2D((1, 4))(block1)
+    block1 = dropoutType(dropoutRate)(block1)
+
+    block2 = SeparableConv2D(F2, (1, kernLength_sep),
+                             use_bias=False, padding='same')(block1)
+    block2 = BatchNormalization()(block2)
+    block2 = Activation('elu')(block2)
+    block2 = AveragePooling2D((1, 8))(block2)
+    block2 = dropoutType(dropoutRate)(block2)
+
+    flatten = Flatten(name='flatten')(block2)
+
+    dense = Dense(nb_classes, name='dense',
+                  kernel_constraint=max_norm(norm_rate))(flatten)
+    softmax = Activation('softmax', name='softmax')(dense)
+
     if projectROIs:
         # Projecting to common brain regions requires weight matrix input
-        return Model(inputs=[input1,input2], outputs=softmax)
+        return Model(inputs=[input1, input2], outputs=softmax)
     else:
         return Model(inputs=input1, outputs=softmax)
