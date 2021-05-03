@@ -42,7 +42,7 @@ def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,
     useHilbert = True if modeltype == 'eegnet_hilb' else False #True if want to use Hilbert transform layer
     
     # Load NN model
-    model = htnet(nb_classes, Chans = X_train.shape[2], Samples = X_train.shape[-1], 
+    model = htnet(nb_classes, Chans = X_train.shape[1], Samples = X_train.shape[2], 
                   dropoutRate = dropoutRate, kernLength = kernLength, F1 = F1, D = D, F2 = F2, 
                   dropoutType = dropoutType,kernLength_sep = kernLength_sep,
                   ROIs = nROIs,useHilbert=useHilbert,projectROIs=projectROIs,do_log=do_log,
@@ -50,7 +50,7 @@ def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,
     
     # Set up comiler, checkpointer, and early stopping during model fitting
     model.compile(loss=loss, optimizer=optimizer, metrics = ['accuracy'])
-#     numParams    = model.count_params() # count number of parameters in the model
+    #     numParams    = model.count_params() # count number of parameters in the model
     checkpointer = ModelCheckpoint(filepath=chckpt_path,verbose=1,save_best_only=True)
     early_stop = EarlyStopping(monitor=early_stop_monitor, mode='min',
                                patience=patience, verbose=0) #stop if val_loss doesn't improve after certain # of epochs
@@ -95,8 +95,7 @@ def cnn_model(X_train, Y_train,X_validate, Y_validate,X_test,Y_test,chckpt_path,
     return accs_lst, np.array([last_epoch,t_fit_total])
 
 def run_nn_models(sp,n_folds,combined_sbjs,lp, roi_proj_loadpath,
-                  pats_ids_in=['EC01','EC02','EC03','EC04','EC05','EC06',
-                               'EC07','EC08','EC09','EC10','EC11','EC12'],
+                  pats_ids_in=['EC01','EC02','EC03','EC04','EC05','EC06','EC07','EC08','EC09','EC10','EC11','EC12'],
                   n_evs_per_sbj=500,test_day=None,tlim=[-1,1],
                   n_chans_all=140,dipole_dens_thresh=0.2,rem_bad_chans=True,
                   models=['eegnet_hilb','eegnet','rf'],save_suffix='',
@@ -177,7 +176,7 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp, roi_proj_loadpath,
             half_n_evs = n_evs_per_sbj
         else:
             half_n_evs = n_evs_per_sbj//len(labels_unique)
-#         half_n_evs_test = 'nopad' #avoid duplicating events for test set (okay for train/val sets where it is more important to balance trials across subjects)
+        #         half_n_evs_test = 'nopad' #avoid duplicating events for test set (okay for train/val sets where it is more important to balance trials across subjects)
         train_inds_folds, val_inds_folds, test_inds_folds = [],[],[]
         for k,modeltype in enumerate(models):
             accs = np.zeros([n_folds,3]) # accuracy table for all NN models
@@ -452,8 +451,15 @@ def run_nn_models(sp,n_folds,combined_sbjs,lp, roi_proj_loadpath,
                         # Fit NN model and store accuracies
                         chckpt_path = sp+'checkpoint_'+modeltype+'_'+pat_id_curr+'_testday_'+\
                                       str(test_day)+'_fold'+str(frodo)+save_suffix+'.h5'
+                        
+                        print(X_train.shape, X_validate.shape, X_test2.shape)
+                        X_train = np.moveaxis(X_train, 1, -1)
+                        X_validate = np.moveaxis(X_validate, 1, -1)
+                        X_test3 = np.moveaxis(X_test2, 1, -1)
+                        print(X_train.shape, X_validate.shape, X_test3.shape)   
+                        
                         accs_lst, last_epoch_tmp = cnn_model(X_train, Y_train,X_validate,
-                                                             Y_validate,X_test2,y_test2,chckpt_path,modeltype,
+                                                             Y_validate,X_test3,y_test2,chckpt_path,modeltype,
                                                              nb_classes = nb_classes,dropoutRate = dropoutRate,
                                                              kernLength = kernLength, F1 = F1, D = D, F2 = F2,
                                                              dropoutType = dropoutType, kernLength_sep = kernLength_sep,
